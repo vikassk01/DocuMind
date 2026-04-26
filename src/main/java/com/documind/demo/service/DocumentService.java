@@ -29,7 +29,6 @@ public class DocumentService {
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
-    // In-memory store
     private final List<String> chunks = new ArrayList<>();
     private final List<double[]> embeddings = new ArrayList<>();
 
@@ -38,22 +37,19 @@ public class DocumentService {
     }
 
     public String uploadDocument(MultipartFile file) throws IOException {
-        // Save temp file
+       
         Path tempFile = Files.createTempFile("documind-", ".pdf");
         file.transferTo(tempFile.toFile());
 
-        // Read PDF
         PagePdfDocumentReader pdfReader = new PagePdfDocumentReader(
                 new FileSystemResource(tempFile.toFile())
         );
         List<Document> documents = pdfReader.get();
         Files.deleteIfExists(tempFile);
 
-        // Clear previous document
         chunks.clear();
         embeddings.clear();
-
-        // Embed each page
+        
         int count = 0;
         for (Document doc : documents) {
             String text = doc.getText();
@@ -74,17 +70,14 @@ public class DocumentService {
             return "No document uploaded yet. Please upload a PDF first.";
         }
 
-        // Get embedding for question
         double[] questionEmbedding = getEmbedding(question);
         if (questionEmbedding == null) {
             return "Could not process your question. Please try again.";
         }
 
-        // Find top 3 most similar chunks
         List<String> topChunks = findTopK(questionEmbedding, 3);
         String context = String.join("\n\n", topChunks);
 
-        // Ask Gemini
         String prompt = """
                 You are a helpful assistant. Answer the question based
                 only on the context provided below.
@@ -105,7 +98,6 @@ public class DocumentService {
 
     private double[] getEmbedding(String text) {
         try {
-            // Truncate text to avoid token limit
             if (text.length() > 2000) {
                 text = text.substring(0, 2000);
             }
@@ -130,14 +122,12 @@ public class DocumentService {
                     request, HttpResponse.BodyHandlers.ofString()
             );
 
-            // DEBUG - print full response
             System.out.println("Embedding API response: " + response.body());
 
             Map<?, ?> responseMap = objectMapper.readValue(
                     response.body(), Map.class
             );
 
-            // Handle both response formats
             Object embeddingObj = responseMap.get("embedding");
             if (embeddingObj == null) {
                 embeddingObj = responseMap.get("embeddings");
